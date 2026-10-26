@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="robots" content="noindex">
+<title>TV Sketchpad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Figtree:wght@400;600&display=swap">
+<style>
+  /* Layout: one column, the sheet first, the tools in a tray under the thumb. */
+  :root {
+    --bg: #ECE8E1; --tray: #FBFAF7; --ink: #1F1D1A; --muted: #6B665E; --line: #D6D0C6;
+    --accent: #2E5BDB; --ok: #1F7A4D; --bad: #B3261E;
+    --display: "Fraunces", Georgia, serif; --body: "Figtree", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17161A; --tray: #222127; --ink: #F2EFE9; --muted: #A39E95; --line: #3A3841;
+      --accent: #7EA2FF; --ok: #5CC28F; --bad: #FF8A80; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink); font: 15px/1.4 var(--body);
+    padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin-inline: auto;
+    -webkit-user-select: none; user-select: none; overscroll-behavior: none;
+  }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  h1 { font: 600 22px/1.1 var(--display); margin: 0; letter-spacing: -0.01em; }
+  #status { font-size: 13px; color: var(--muted); text-align: right; min-height: 1.4em; }
+  #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
+  .sheet { position: relative; width: 100%; aspect-ratio: 4 / 3; max-width: 100%;
+    background: #FFFFFF; border-radius: 14px; box-shadow: 0 1px 0 var(--line), 0 8px 24px rgb(0 0 0 / 0.12);
+    overflow: hidden; touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .tray { background: var(--tray); border: 1px solid var(--line); border-radius: 16px; padding: 12px;
+    display: grid; gap: 12px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); width: 44px; }
+  .swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--tray); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
+  .size { width: 40px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: transparent; cursor: pointer; display: grid; place-items: center; }
+  .size span { display: block; border-radius: 50%; background: var(--ink); }
+  .size[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .actions { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 8px; }
+  button.act { font: 600 15px var(--body); border-radius: 12px; padding: 12px 10px; border: 1px solid var(--line);
+    background: transparent; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #FFFFFF; }
+  @media (prefers-color-scheme: dark) { button.primary { color: #10131C; } }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .foot { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+  .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+  #setup { background: var(--tray); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 10px; }
+  #setup p { margin: 0; }
+  #setup input { font: 15px var(--body); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>TV Sketchpad</h1>
+    <div id="status" role="status" aria-live="polite"></div>
+  </header>
+
+  <section id="setup" hidden>
+    <p>This page needs your TV's code. Open the full link from your notes (it ends in <b>#tv-…</b>), or paste the code here.</p>
+    <input id="code" placeholder="tv-…" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="act primary" id="saveCode" type="button">Use this code</button>
+  </section>
+
+  <div class="sheet" id="sheet"><canvas id="pad" aria-label="Drawing area"></canvas></div>
+
+  <div class="tray">
+    <div class="row" id="colors"><span class="label">Colour</span></div>
+    <div class="row" id="sizes"><span class="label">Brush</span></div>
+    <div class="actions">
+      <button class="act" id="undo" type="button">Undo</button>
+      <button class="act" id="wipe" type="button">Wipe</button>
+      <button class="act primary" id="send" type="button">Send to TV</button>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>Shows on the TV for 10 seconds.</span>
+    <button class="link" id="clearTv" type="button">Clear the TV</button>
+  </div>
+
+<script>
+(() => {
+  const COLORS = ["#1F1D1A", "#D93025", "#F29900", "#188038", "#1A73E8", "#9334E6", "#E8710A", "#FFFFFF"];
+  const SIZES = [4, 10, 22];          // in sheet pixels (the sheet is 1200 x 900)
+  const W = 1200, H = 900;
+
+  const pad = document.getElementById("pad");
+  const ctx = pad.getContext("2d");
+  const status = document.getElementById("status");
+  let color = COLORS[0], size = SIZES[1];
+  const strokes = [];                 // each: {color, size, points: [[x,y],...]}
+  let current = null;
+
+  function topic() {
+    const h = decodeURIComponent(location.hash.slice(1)).trim();
+    if (/^[A-Za-z0-9_-]{8,64}$/.test(h)) return h;
+    try { const s = localStorage.getItem("tvTopic"); if (s) return s; } catch (e) {}
+    return "";
+  }
+  function say(text, cls) { status.textContent = text; status.className = cls || ""; }
+
+  // Sheet: a fixed 1200 x 900 bitmap, scaled by CSS, so what is sent never depends on the phone.
+  pad.width = W; pad.height = H;
+  function paint() {
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, W, H);
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const s of strokes) drawStroke(s);
+  }
+  function drawStroke(s) {
+    ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineWidth = s.size;
+    const p = s.points;
+    if (p.length === 1) { ctx.beginPath(); ctx.arc(p[0][0], p[0][1], s.size / 2, 0, Math.PI * 2); ctx.fill(); return; }
+    ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+    for (let i = 1; i < p.length - 1; i++) {
+      const mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2;
+      ctx.quadraticCurveTo(p[i][0], p[i][1], mx, my);
+    }
+    ctx.lineTo(p[p.length - 1][0], p[p.length - 1][1]); ctx.stroke();
+  }
+  function at(e) {
+    const r = pad.getBoundingClientRect();
+    return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height];
+  }
+  pad.addEventListener("pointerdown", e => {
+    pad.setPointerCapture(e.pointerId);
+    current = { color, size, points: [at(e)] }; strokes.push(current); paint();
+  });
+  pad.addEventListener("pointermove", e => {
+    if (!current) return;
+    for (const ev of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) current.points.push(at(ev));
+    paint();
+  });
+  const end = () => { current = null; };
+  pad.addEventListener("pointerup", end); pad.addEventListener("pointercancel", end);
+
+  // Tools
+  const colorRow = document.getElementById("colors"), sizeRow = document.getElementById("sizes");
+  COLORS.forEach((c, i) => {
+    const b = document.createElement("button");
+    b.className = "swatch"; b.type = "button"; b.style.background = c;
+    b.setAttribute("aria-label", i === COLORS.length - 1 ? "White (eraser)" : "Colour " + c);
+    b.setAttribute("aria-pressed", String(c === color));
+    b.onclick = () => { color = c; colorRow.querySelectorAll(".swatch").forEach(x => x.setAttribute("aria-pressed", String(x === b))); };
+    colorRow.appendChild(b);
+  });
+  SIZES.forEach(s => {
+    const b = document.createElement("button");
+    b.className = "size"; b.type = "button"; b.setAttribute("aria-label", "Brush " + s);
+    b.setAttribute("aria-pressed", String(s === size));
+    const dot = document.createElement("span"); const d = Math.max(4, s * 0.8); dot.style.width = dot.style.height = d + "px";
+    b.appendChild(dot);
+    b.onclick = () => { size = s; sizeRow.querySelectorAll(".size").forEach(x => x.setAttribute("aria-pressed", String(x === b))); };
+    sizeRow.appendChild(b);
+  });
+  document.getElementById("undo").onclick = () => { strokes.pop(); paint(); };
+  document.getElementById("wipe").onclick = () => { strokes.length = 0; paint(); };
+
+  async function post(body, headers) {
+    const t = topic();
+    if (!t) { showSetup(); throw new Error("no code"); }
+    const r = await fetch("https://ntfy.sh/" + encodeURIComponent(t), { method: "PUT", body, headers });
+    if (!r.ok) throw new Error("ntfy answered " + r.status);
+  }
+  const send = document.getElementById("send");
+  send.onclick = () => {
+    if (!strokes.length) { say("Draw something first."); return; }
+    send.disabled = true; say("Sending…");
+    pad.toBlob(async blob => {
+      try { await post(blob, { "Filename": "drawing.png" }); say("On the TV now.", "ok"); }
+      catch (e) { if (e.message !== "no code") say("Not sent: check your internet and try again.", "bad"); }
+      finally { send.disabled = false; }
+    }, "image/png");
+  };
+  document.getElementById("clearTv").onclick = async () => {
+    try { await post("clear", {}); say("TV cleared.", "ok"); }
+    catch (e) { if (e.message !== "no code") say("Not sent: check your internet and try again.", "bad"); }
+  };
+
+  // Setup, only when the page was opened without the #code
+  const setup = document.getElementById("setup");
+  function showSetup() { setup.hidden = false; say("Add your TV code first.", "bad"); }
+  document.getElementById("saveCode").onclick = () => {
+    const v = document.getElementById("code").value.trim().replace(/^.*#/, "");
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(v)) { say("That code doesn't look right.", "bad"); return; }
+    try { localStorage.setItem("tvTopic", v); } catch (e) {}
+    location.hash = v; setup.hidden = true; say("Ready.", "ok");
+  };
+  if (!topic()) showSetup(); else {
+    try { localStorage.setItem("tvTopic", topic()); } catch (e) {}
+  }
+  paint();
+})();
+</script>
+</body>
+</html>
