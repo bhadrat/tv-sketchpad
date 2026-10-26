@@ -35,11 +35,15 @@
     background: #FFFFFF; border-radius: 14px; box-shadow: 0 1px 0 var(--line), 0 8px 24px rgb(0 0 0 / 0.12);
     overflow: hidden; touch-action: none; }
   canvas { display: block; width: 100%; height: 100%; }
+  .hint { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; pointer-events: none;
+    font: 600 18px var(--display); color: #A8A196; transition: opacity 0.3s; }
+  .hint.gone { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .hint { transition: none; } }
   .tray { background: var(--tray); border: 1px solid var(--line); border-radius: 16px; padding: 12px;
     display: grid; gap: 12px; }
-  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); width: 44px; }
-  .swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--tray); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+  .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--tray); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
   .swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
   .size { width: 40px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: transparent; cursor: pointer; display: grid; place-items: center; }
   .size span { display: block; border-radius: 50%; background: var(--ink); }
@@ -54,6 +58,7 @@
   .foot { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
   .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
   #setup { background: var(--tray); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 10px; }
+  #setup[hidden] { display: none; }   /* the id rule above would otherwise beat the hidden attribute */
   #setup p { margin: 0; }
   #setup input { font: 15px var(--body); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
 </style>
@@ -70,7 +75,7 @@
     <button class="act primary" id="saveCode" type="button">Use this code</button>
   </section>
 
-  <div class="sheet" id="sheet"><canvas id="pad" aria-label="Drawing area"></canvas></div>
+  <div class="sheet" id="sheet"><canvas id="pad" aria-label="Drawing area"></canvas><p class="hint" id="hint">Draw here with your finger</p></div>
 
   <div class="tray">
     <div class="row" id="colors"><span class="label">Colour</span></div>
@@ -132,7 +137,7 @@
   }
   pad.addEventListener("pointerdown", e => {
     pad.setPointerCapture(e.pointerId);
-    current = { color, size, points: [at(e)] }; strokes.push(current); paint();
+    current = { color, size, points: [at(e)] }; strokes.push(current); paint(); hint();
   });
   pad.addEventListener("pointermove", e => {
     if (!current) return;
@@ -161,8 +166,9 @@
     b.onclick = () => { size = s; sizeRow.querySelectorAll(".size").forEach(x => x.setAttribute("aria-pressed", String(x === b))); };
     sizeRow.appendChild(b);
   });
-  document.getElementById("undo").onclick = () => { strokes.pop(); paint(); };
-  document.getElementById("wipe").onclick = () => { strokes.length = 0; paint(); };
+  function hint() { document.getElementById("hint").classList.toggle("gone", strokes.length > 0); }
+  document.getElementById("undo").onclick = () => { strokes.pop(); paint(); hint(); };
+  document.getElementById("wipe").onclick = () => { strokes.length = 0; paint(); hint(); };
 
   async function post(body, headers) {
     const t = topic();
